@@ -29,13 +29,6 @@ class TestNPathNode(unittest.TestCase):
         plt.grid()
         plt.show()
 
-        # plt.figure()
-        # plt.plot(freqs/GHz, np.unwrap(np.angle(S11[N, :]))/np.pi)
-        # plt.plot(freqs/GHz, np.unwrap(np.angle(S21[N, :]))/np.pi)
-        # plt.plot(freqs/GHz, np.unwrap(np.angle(S12[N, :]))/np.pi)
-        # plt.grid()
-        # plt.show()
-
 
 class TestFilter(unittest.TestCase):
 
@@ -52,6 +45,29 @@ class TestFilter(unittest.TestCase):
         plt.figure()
         plt.plot(freqs/GHz, 10*np.log10(np.abs(S11)))
         plt.plot(freqs/GHz, 10*np.log10(np.abs(S21)))
+        plt.grid()
+        plt.show()
+
+
+class TestCirculator(unittest.TestCase):
+
+    def test_sparam(self):
+
+        node = Circulator(
+            freqs=freqs,
+            freq_mod=1*GHz,
+            C=1*pF)
+
+        S11 = node.compute_sparam(1, 1)
+        S21 = node.compute_sparam(2, 1)
+        S12 = node.compute_sparam(1, 2)
+        S31 = node.compute_sparam(2, 1)
+
+        plt.figure()
+        plt.plot(freqs/GHz, 10*np.log10(np.abs(S11)))
+        plt.plot(freqs/GHz, 10*np.log10(np.abs(S21)))
+        plt.plot(freqs/GHz, 10*np.log10(np.abs(S12)))
+        plt.plot(freqs/GHz, 10*np.log10(np.abs(S31)))
         plt.grid()
         plt.show()
 

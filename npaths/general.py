@@ -115,13 +115,13 @@ class NPathNode:
 
             omega = self.omegas[ifreq]
             r0 = -np.around(omega/self.omega_mod)
-            r = np.arange(r0-N_subset, r0+N_subset+1)
-            l = np.setxor1d(harmonics, r)
+            rr = np.arange(r0-N_subset, r0+N_subset+1)
+            ll = np.setxor1d(harmonics, rr)
 
             B = np.diag(U[N, N] + 1j * (omega + harmonics*omega_mod) * tau)
             diagU = np.diag(np.diag(U))
 
-            l1 = (l+N).astype(np.intp)
+            l1 = (ll+N).astype(np.intp)
             l1v = l1[:, np.newaxis]
 
             P = self.P[port_from-1]
@@ -133,10 +133,10 @@ class NPathNode:
             U1 = U - np.linalg.multi_dot(
                 [U[:, l1] - diagU[:, l1], inv(B[l1v, l1]), U[l1, :]])
 
-            r1 = (r+N).astype(np.intp)
+            r1 = (rr+N).astype(np.intp)
             r1v = r1[:, np.newaxis]
 
-            Om = np.diag(omega + r*omega_mod)
+            Om = np.diag(omega + rr*omega_mod)
 
             vc = np.zeros((2*N+1, 1), dtype=complex)
             vc[r1] = np.matmul(inv(U1[r1v, r1] + 1j*Om*tau), P1[r1v, N])
@@ -159,5 +159,3 @@ class NPathNode:
 def get_spectrum(function):
     spectrum = np.fft.fft(np.real(function))/len(function)
     return spectrum
-
-
