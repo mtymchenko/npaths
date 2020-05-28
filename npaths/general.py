@@ -2,8 +2,6 @@ import numpy as np
 from scipy.signal import square
 from scipy.linalg import toeplitz, inv
 
-from .helpers import read_str_sparam
-
 
 __all__ = [
     'NPathNode'
@@ -44,6 +42,16 @@ class NPathNode:
         self.delays = delays
         self.duty_cycles = duty_cycles
         self.Z0 = Z0
+        self.T_mod = 1/self.freq_mod
+        self.tau = self.C * self.Z0
+        self.harmonics = np.arange(-self.n_harmonics, self.n_harmonics+1)
+
+        self._smatrix = []
+        for _ in range(self.n_ports):
+            row = []
+            for _ in range(self.n_ports):
+                row.append(None)
+            self._smatrix.append(row)
 
         N = self.n_harmonics
 
@@ -55,42 +63,21 @@ class NPathNode:
 
         t = np.linspace(-self.T_mod/2, self.T_mod/2, 2**12)
 
-        for ip in range(self.n_ports):
+        for iport in range(self.n_ports):
 
-            pt[ip] = 0.5*(1+square(
-                2*np.pi*(t/self.T_mod-self.delays[ip]), self.duty_cycles[ip]))
-            pn[ip] = get_spectrum(pt[ip])
+            pt[iport] = 0.5*(1+square(
+                2*np.pi*(t/self.T_mod-self.delays[iport]),
+                self.duty_cycles[iport]))
 
-            pn_p = pn[ip][np.arange(0, 2*N+1, 1)]
-            pn_m = pn[ip][np.arange(0, -2*N-1, -1)]
+            pn[iport] = get_spectrum(pt[iport])
 
-            self.P[ip] = toeplitz(pn_p, pn_m)
-            self.U += self.P[ip]
+            pn_p = pn[iport][np.arange(0, 2*N+1, 1)]
+            pn_m = pn[iport][np.arange(0, -2*N-1, -1)]
 
-    @property
-    def omegas(self):
-        return 2*np.pi*self.freqs
+            self.P[iport] = toeplitz(pn_p, pn_m)
+            self.U += self.P[iport]
 
-    @property
-    def omega_mod(self):
-        return 2*np.pi*self.freq_mod
-
-    @property
-    def T_mod(self):
-        return 1/self.freq_mod
-
-    @property
-    def tau(self):
-        return self.C * self.Z0
-
-    @property
-    def harmonics(self):
-        return np.arange(-self.n_harmonics, self.n_harmonics+1)
-
-    def get_sparams(self, sparams):
-        pass
-
-    def compute_sparam(self, port_to, port_from, harmonic=0):
+    def sparam(self, port_to, port_from, harmonic=0):
         """Computes desired sparams.
 
         Args:
@@ -102,60 +89,71 @@ class NPathNode:
             sparam (ndarray): Computed s-params.
 
         """
-        N = self.n_harmonics
-        N_subset = self.n_harmonics_subset
-        harmonics = self.harmonics
-        tau = self.tau
-        omega_mod = self.omega_mod
-        U = self.U
+        p1 = port_to-1
+        p2 = port_from-1
 
-        sparam = np.zeros((2*N+1, len(self.freqs)), dtype=complex)
+        if self._smatrix[p1][p2] is None:
 
-        for ifreq, _ in enumerate(self.freqs):
-
-            omega = self.omegas[ifreq]
-            r0 = -np.around(omega/self.omega_mod)
-            rr = np.arange(r0-N_subset, r0+N_subset+1)
-            ll = np.setxor1d(harmonics, rr)
-
-            B = np.diag(U[N, N] + 1j * (omega + harmonics*omega_mod) * tau)
-            diagU = np.diag(np.diag(U))
-
-            l1 = (ll+N).astype(np.intp)
-            l1v = l1[:, np.newaxis]
-
+            N = self.n_harmonics
+            N1 = self.n_harmonics_subset
+            harmonics = self.harmonics
+            tau = self.tau
+            freq_mod = self.freq_mod
+            U = self.U
             P = self.P[port_from-1]
             Q = self.P[port_to-1]
+            offdiagU = U - np.diag(np.diag(U))
 
-            P1 = P - np.linalg.multi_dot(
-                [U[:, l1] - diagU[:, l1], inv(B[l1v, l1]), P[l1, :]])
+            sparam = np.zeros((2*N+1, len(self.freqs)), dtype=complex)
 
-            U1 = U - np.linalg.multi_dot(
-                [U[:, l1] - diagU[:, l1], inv(B[l1v, l1]), U[l1, :]])
+            for ifreq, freq in enumerate(self.freqs):
 
-            r1 = (rr+N).astype(np.intp)
-            r1v = r1[:, np.newaxis]
+                r0 = -np.around(freq/freq_mod)
+                rr = np.arange(r0-N1, r0+N1+1)
+                ll = np.setxor1d(harmonics, rr)
 
-            Om = np.diag(omega + rr*omega_mod)
+                l1 = (ll+N).astype(np.intp)
+                l1v = l1[:, np.newaxis]
 
-            vc = np.zeros((2*N+1, 1), dtype=complex)
-            vc[r1] = np.matmul(inv(U1[r1v, r1] + 1j*Om*tau), P1[r1v, N])
-            vc[l1] = np.matmul(
-                inv(B[l1v, l1]), P1[l1v, N] - np.matmul(U1[l1v, r1], vc[r1]))
+                r1 = (rr+N).astype(np.intp)
+                r1v = r1[:, np.newaxis]
 
-            sN = harmonics[np.where(np.mod(harmonics, self.n_paths) == 0)]
-            sN1 = (sN+N).astype(np.intp)
+                Om = 2*np.pi*np.diag(freq + harmonics*freq_mod)
 
-            if port_from == port_to:
-                sparam[sN, ifreq] = np.squeeze(
-                    2 * self.n_paths * np.dot(Q[sN1, :], vc) - 1)
-            else:
-                sparam[sN, ifreq] = np.squeeze(
-                    2 * self.n_paths * np.dot(Q[sN1, :], vc))
+                M = U + 1j*Om*tau
 
-        return sparam[harmonic, :]
+                B = np.diag(np.diag(M))
+                invBl1 = inv(B[l1v, l1])
+                # invMr1 = inv(M[r1v, r1])
+
+                F = np.matmul(offdiagU[:, l1], invBl1)
+
+                P1 = P - np.matmul(F, P[l1, :])
+                U1 = U - np.matmul(F, U[l1, :])
+
+                M1 = U1 + 1j*Om*tau
+                invM1r1 = inv(M1[r1v, r1])
+
+                vc = np.zeros((2*N+1, 1), dtype=complex)
+                vc[r1] = np.matmul(invM1r1, P1[r1v, N])
+                vc[l1] = np.matmul(
+                    invBl1, P1[l1v, N] - U1[l1v, r1].dot(vc[r1]))
+
+                sN = harmonics[np.where(np.mod(harmonics, self.n_paths) == 0)]
+                sN1 = (sN+N).astype(np.intp)
+
+                if port_from == port_to:
+                    sparam[sN, ifreq] = np.squeeze(
+                        2 * self.n_paths * Q[sN1, :].dot(vc) - 1)
+                else:
+                    sparam[sN, ifreq] = np.squeeze(
+                        2 * self.n_paths * Q[sN1, :].dot(vc))
+
+            self._smatrix[p1][p2] = sparam
+
+        return self._smatrix[p1][p2][harmonic, :]
 
 
-def get_spectrum(function):
-    spectrum = np.fft.fft(np.real(function))/len(function)
+def get_spectrum(func):
+    spectrum = np.fft.fft(np.real(func))/len(func)
     return spectrum
