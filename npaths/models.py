@@ -1,15 +1,15 @@
 import numpy as np
 
-from .general import NPathNode
+from .general import NPath
 
 
 __all__ = [
-    'Filter',
+    'NPathFilter',
     'Circulator'
 ]
 
 
-class Filter(NPathNode):
+class NPathFilter(NPath):
     """Analytical model of a M-way N-path circulator based on switched
     capacitors.
 
@@ -35,7 +35,7 @@ class Filter(NPathNode):
             delays, duty_cycles, Z0)
 
 
-class Circulator(NPathNode):
+class Circulator(NPath):
     """Analytical model of a M-way N-path circulator based on switched
     capacitors.
 

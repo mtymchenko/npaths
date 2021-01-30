@@ -3,26 +3,21 @@ from scipy.signal import square
 from scipy.linalg import toeplitz, inv
 
 
-__all__ = [
-    'NPathNode'
-]
-
-
-class NPathNode:
+class NPath:
     """Model of an N-way circulator based on switched capacitive
     networks.
 
     Args:
-        freqs (list of float): Simulation frequencies (Hz).
+        freqs (liss[float]): Simulation frequencies (Hz).
         freq_mod (float): Switching frequency (Hz).
         C (float): Branch capacitance (F).
         n_ports (int, optional): Number of ports.
         n_paths (int, optional): Number of paths.
         n_harmonics (int, optional): Number of harmonics
             [-n_harmonics...n_harmonics].
-        delays (list of float): Delays on switches at all ports.
+        delays (list[float]): Delays on switches at all ports.
             Each must be between 0 and 1.
-        duty_cycles (list of floats): Duty cycles at all ports.
+        duty_cycles (list[floats]): Duty cycles at all ports.
             Each must be between 0 and 1.
 
     """
@@ -76,6 +71,26 @@ class NPathNode:
 
             self.P[iport] = toeplitz(pn_p, pn_m)
             self.U += self.P[iport]
+
+    @property
+    def delays(self):
+        return self._delays
+
+    @delays.setter
+    def delays(self, delays):
+        assert len(delays) == self.n_ports
+        assert all(map(lambda d: (d >= 0 and d <= 1.0), delays))
+        self._delays = delays
+
+    @property
+    def duty_cycles(self):
+        return self._duty_cycles
+
+    @duty_cycles.setter
+    def duty_cycles(self, duty_cycles):
+        assert len(duty_cycles) == self.n_ports
+        assert all(map(lambda d: (d >= 0 and d <= 1.0), duty_cycles))
+        self._duty_cycles = duty_cycles
 
     def sparam(self, port_to, port_from, harmonic=0):
         """Computes desired sparams.
