@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 from scipy.signal import square
 from scipy.linalg import toeplitz, inv
@@ -21,11 +22,17 @@ class NPath:
             Each must be between 0 and 1.
 
     """
-    def __init__(
-            self, freqs, freq_mod, C,
-            n_ports=2, n_paths=8, n_harmonics=40, n_harmonics_subset=7,
-            delays=[0.0, 0.5], duty_cycles=[1.0/8.0, 1.0/8.0],
-            Z0=50.0):
+    def __init__(self,
+                 freqs: List[float],
+                 freq_mod: float,
+                 C: float,
+                 n_ports: int = 2,
+                 n_paths: int = 8,
+                 n_harmonics: int = 40,
+                 n_harmonics_subset: int = 7,
+                 delays: List[float] = [0.0, 0.5],
+                 duty_cycles: List[float] = [1.0/8.0, 1.0/8.0],
+                 Z0: float = 50.0):
 
         self.freqs = freqs
         self.freq_mod = freq_mod
@@ -92,7 +99,10 @@ class NPath:
         assert all(map(lambda d: (d >= 0 and d <= 1.0), duty_cycles))
         self._duty_cycles = duty_cycles
 
-    def sparam(self, port_to, port_from, harmonic=0):
+    def sparam(self,
+               port_to: int,
+               port_from: int,
+               harmonic: int = 0) -> List[float]:
         """Computes desired sparams.
 
         Args:
@@ -169,6 +179,5 @@ class NPath:
         return self._smatrix[p1][p2][harmonic, :]
 
 
-def get_spectrum(func):
-    spectrum = np.fft.fft(np.real(func))/len(func)
-    return spectrum
+def get_spectrum(func: List[float]) -> List[float]:
+    return np.fft.fft(np.real(func))/len(func)
